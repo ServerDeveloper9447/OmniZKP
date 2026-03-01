@@ -21,7 +21,7 @@ Omni-ZKP introduces **Hardware-Attested Circuits**:
 
 ## Quick Start (Local Development)
 
-### 1. Build the Rust WASM Enclave
+### 1. Build the Rust WASM Enclave(Skip if you want to just test, there is already /core-wasm, the pre-built pkg available in the web folder)
 ```bash
 cd omni-zkp-core
 wasm-pack build --target web --out-dir ./pkg

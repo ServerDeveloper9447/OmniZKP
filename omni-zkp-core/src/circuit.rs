@@ -39,14 +39,15 @@ impl Circuit<Fr> for OmniCircuit {
         meta.enable_equality(advice);
         meta.enable_equality(instance);
 
-        // 1. Spatio-Temporal Gate (Distance Geofence)
+        // Gate 1 — Geofence Distance Constraint.
+        // Enforces d = user_lat - target_lat ∈ {0, 100, 200, 300, 400, 500} (units: 100m steps).
+        // Implemented as a degree-6 vanishing polynomial; any value outside the set fails verification.
         meta.create_gate("location_check", |meta| {
             let s = meta.query_selector(switch_loc);
             let user = meta.query_advice(advice, Rotation::cur());
             let target = meta.query_advice(advice, Rotation::next());
-            let d = user - target; 
-            
-            // Acceptable polynomial roots for distance
+            let d = user - target;
+
             let c0 = d.clone();
             let c1 = d.clone() - Expression::Constant(Fr::from(100));
             let c2 = d.clone() - Expression::Constant(Fr::from(200));
@@ -54,17 +55,18 @@ impl Circuit<Fr> for OmniCircuit {
             let c4 = d.clone() - Expression::Constant(Fr::from(400));
             let c5 = d.clone() - Expression::Constant(Fr::from(500));
 
-            vec![s * c0 * c1 * c2 * c3 * c4 * c5] 
+            vec![s * c0 * c1 * c2 * c3 * c4 * c5]
         });
 
-        // 2. Time-Lock Gate (Signal Age Geofence)
+        // Gate 2 — Time-Lock Signal Age Constraint.
+        // Enforces age = current_time - user_time ∈ {0, 5, 10, 15, 20, 25, 30} (units: seconds).
+        // Implemented as a degree-7 vanishing polynomial; stale signals outside this set are rejected.
         meta.create_gate("time_check", |meta| {
             let s = meta.query_selector(switch_time);
             let current = meta.query_advice(advice, Rotation::cur());
             let user_t = meta.query_advice(advice, Rotation::next());
             let age = current - user_t;
-            
-            // Acceptable polynomial roots for time (0s to 30s)
+
             let t0 = age.clone();
             let t1 = age.clone() - Expression::Constant(Fr::from(5));
             let t2 = age.clone() - Expression::Constant(Fr::from(10));
@@ -83,26 +85,27 @@ impl Circuit<Fr> for OmniCircuit {
         layouter.assign_region(
             || "Validation Region",
             |mut region| {
-                // Assign Location Logic
+                // Rows 0–1: location gate witnesses (user_lat, target_lat).
                 config.switch_loc.enable(&mut region, 0)?;
-                region.assign_advice(|| "User Lat", config.advice, 0, || self.user_lat)?;
-                let t_cell = region.assign_advice(|| "Target Lat", config.advice, 1, || self.target_lat)?;
+                region.assign_advice(|| "user_lat", config.advice, 0, || self.user_lat)?;
+                let t_cell = region.assign_advice(|| "target_lat", config.advice, 1, || self.target_lat)?;
 
-                // Assign Time Logic
+                // Rows 2–3: time-lock gate witnesses (current_time, user_time).
                 config.switch_time.enable(&mut region, 2)?;
-                region.assign_advice(|| "Current Time", config.advice, 2, || self.current_time)?;
-                region.assign_advice(|| "User Time", config.advice, 3, || self.user_time)?;
+                region.assign_advice(|| "current_time", config.advice, 2, || self.current_time)?;
+                region.assign_advice(|| "user_time", config.advice, 3, || self.user_time)?;
 
-                // Assign Revocation Tracking (No Gate attached, just loading the state)
-                region.assign_advice(|| "My ID", config.advice, 4, || self.user_nullifier)?;
-                let r_cell = region.assign_advice(|| "Revoked ID", config.advice, 5, || self.blacklisted_nullifier)?;
+                // Rows 4–5: nullifier witnesses loaded for public-input equality checks.
+                // No polynomial gate is attached; revocation is enforced in lib.rs before synthesis.
+                region.assign_advice(|| "user_nullifier", config.advice, 4, || self.user_nullifier)?;
+                let r_cell = region.assign_advice(|| "blacklisted_nullifier", config.advice, 5, || self.blacklisted_nullifier)?;
 
                 Ok((t_cell, r_cell))
             },
         ).and_then(|(t, r)| {
-            // These correspond exactly to the `public_inputs` vector in lib.rs
+            // Bind cells to the public instance column at indices matching `public_inputs` in lib.rs.
             layouter.constrain_instance(t.cell(), config.instance, 0)?;
-            layouter.constrain_instance(r.cell(), config.instance, 1)?; 
+            layouter.constrain_instance(r.cell(), config.instance, 1)?;
             Ok(())
         })
     }

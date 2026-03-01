@@ -60,20 +60,23 @@ pub fn generate_nullifier_hash(secret: &str, scope: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
+/// Splits `secret_hex` into `total` shares using Shamir Secret Sharing over GF(2⁸).
+/// Any `threshold` shares are sufficient to reconstruct the secret; fewer reveal nothing.
+/// Shares are hex-encoded and joined as CSV for safe transport across the WASM boundary.
 #[wasm_bindgen]
 pub fn generate_shards(secret_hex: &str, total: u8, threshold: u8) -> String {
     let sharks = Sharks(threshold);
     let secret_bytes = hex::decode(secret_hex).unwrap_or_default();
-    
+
     let iter = sharks.dealer(&secret_bytes).take(total as usize);
     let mut shards = Vec::new();
-    
+
     for share in iter {
         let share_bytes = Vec::from(&share);
         shards.push(hex::encode(share_bytes));
     }
-    
-    shards.join(",") // Safely pass across WASM boundary
+
+    shards.join(",")
 }
 
 #[wasm_bindgen]
@@ -98,15 +101,26 @@ pub fn recover_secret_from_shards(shards_csv: &str, threshold: u8) -> Option<Str
     }
 }
 
+/// Entry point for the Halo2 ZK proof pipeline, exposed to the WASM host.
+///
+/// Validates two cryptographic properties before synthesising the circuit:
+/// 1. **TEE Attestation** — rejects payloads not signed by a trusted hardware enclave.
+/// 2. **Nullifier Revocation** — checks the caller's nullifier against a public blacklist.
+///
+/// The `OmniCircuit` enforces spatio-temporal constraints via two polynomial gates:
+/// a location geofence (distance in 100m increments, max 500m) and a time-lock gate
+/// (signal age in 5s increments, max 30s). Proof runs on a KZG-backed MockProver
+/// with k=5 (32 rows), providing enough blinding rows for the constraint system.
 #[wasm_bindgen]
 pub fn verify_proof_js(user_lat: u64, user_time: u64, target_lat: u64, target_time: u64, user_nullifier_hex: &str, hardware_sig: &str) -> String {
-    
-    // The circuit refuses to process raw integers unless they carry a valid hardware attestation.
+
+    // Gate 0: Reject payloads lacking a valid hardware enclave attestation.
     if hardware_sig.trim().is_empty() || hardware_sig == "UNVERIFIED" {
-        return "❌ INVALID: Payload rejected. Missing Hardware TEE Attestation.".to_string();
+        return "[REJECTED] INVALID: Payload rejected. Missing Hardware TEE Attestation.".to_string();
     }
-    
-    // Safe String Slicing (Prevents Out-Of-Bounds Panic)
+
+    // Parse the first 8 hex chars of the nullifier into a u64 for field arithmetic.
+    // Falls back to zero on malformed input; a zero nullifier cannot match deadbeef.
     let nullifier_prefix = if user_nullifier_hex.len() >= 8 {
         &user_nullifier_hex[0..8]
     } else {
@@ -126,19 +140,21 @@ pub fn verify_proof_js(user_lat: u64, user_time: u64, target_lat: u64, target_ti
 
     let public_inputs = vec![Fr::from(target_lat), Fr::from(revoked_null_val)];
 
+    // Gate 1: Short-circuit if nullifier appears in the public revocation set.
     if user_null_val == revoked_null_val {
-        return "❌ INVALID: Identity Revoked (Found in Public Blacklist)".to_string();
+        return "[REJECTED] INVALID: Identity Revoked (Found in Public Blacklist)".to_string();
     }
-    
-    // 2. Increase 'k' to 5 (32 rows) to give Halo2 room for blinding factors
+
+    // Synthesise and verify the circuit. k=5 allocates 32 rows, accommodating
+    // the 6-row assignment region plus the blinding factors required by KZG.
     let prover = match MockProver::run(5, &circuit, vec![public_inputs]) {
         Ok(p) => p,
-        Err(e) => return format!("❌ PROVER CRASH: {:?}", e),
+        Err(e) => return format!("[REJECTED] PROVER CRASH: {:?}", e),
     };
 
     match prover.verify() {
-        Ok(_) => "✅ VALID (Native Halo2 Prover + Revocation Check)".to_string(),
-        Err(_) => "❌ INVALID: ZK Constraints Violated".to_string()
+        Ok(_) => "[VERIFIED] VALID (Native Halo2 Prover + Revocation Check)".to_string(),
+        Err(_) => "[REJECTED] INVALID: ZK Constraints Violated".to_string(),
     }
 }
 

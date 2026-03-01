@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Building2, ShieldCheck, Bike,
     CheckCircle, Circle, Loader2, AlertTriangle, Zap,
@@ -39,14 +39,17 @@ export function VerifierView({
     distM, signalS, onDistChange, onSignalChange, onVerify,
     useHardwareEnclave, onHardwareToggle,
 }: VerifierViewProps) {
-    // STATE MOVED INSIDE THE COMPONENT
+    /** Tracks the on-chain transaction hash after a credential is anchored to Polygon. */
     const [anchorTx, setAnchorTx] = useState<string | null>(null);
     const [isAnchoring, setIsAnchoring] = useState(false);
 
     const Icon = ICON_MAP[profile.icon] ?? Building2;
     const canProve = !!identity && isWasmReady && !proving;
 
-    // HANDLER FOR CROSS-CHAIN ANCHORING
+    /**
+     * Submits the issued W3C Verifiable Credential as a state root to the OmniAnchor
+     * smart contract on Polygon, returning the resulting transaction hash.
+     */
     const handleAnchor = async () => {
         if (!credential) return;
         setIsAnchoring(true);
@@ -58,6 +61,21 @@ export function VerifierView({
         }
         setIsAnchoring(false);
     };
+
+    const [timer, setTimer] = useState("0.00");
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (proving) {
+            const start = performance.now();
+            interval = setInterval(() => {
+                setTimer(((performance.now() - start) / 1000).toFixed(2));
+            }, 50);
+        } else {
+            setTimer("0.00");
+        }
+        return () => clearInterval(interval);
+    }, [proving]);
 
     return (
         <div className="space-y-1">
@@ -203,12 +221,14 @@ export function VerifierView({
                                 {proving ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                        Executing WASM prover…
+                                        <span className="font-mono w-40 text-left">
+                                            Executing WASM... {timer}s
+                                        </span>
                                     </>
                                 ) : (
                                     <>
                                         <Zap className="w-4 h-4 mr-2" />
-                                        Generate &amp; Submit Proof
+                                        Generate & Submit Proof
                                     </>
                                 )}
                             </Button>

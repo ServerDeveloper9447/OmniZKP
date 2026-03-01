@@ -63,7 +63,7 @@ export default function OmniZKPPage() {
     useEffect(() => {
         addLog("info", "Initialising WASM enclave…");
 
-        // 1. Boot up the ZK Prover
+        // Load the Halo2 ZK prover WASM module and initialise the KZG SRS.
         init()
             .then(() => {
                 setIsWasmReady(true);
@@ -72,7 +72,7 @@ export default function OmniZKPPage() {
             })
             .catch((e: Error) => addLog("error", `WASM init failed: ${e.message}`));
 
-        // 2. Boot up the Hardware Crypto Enclave
+        // Generate an ECDH keypair in the OS hardware keychain for TEE attestation.
         generateHardwareKeypair()
             .then(keys => {
                 setHardwareKeys(keys);
@@ -90,14 +90,14 @@ export default function OmniZKPPage() {
         addLog("success", `Pedersen commitment: ${id.commitment.slice(0, 20)}…`);
         const s = createShards(id.masterSecret, 3, 2);
         setShards(s);
-        // INNOVATION: Encrypt shards before "sending" to Guardian network
-        // (Hardcoding a demo PIN of '4242' for the presentation flow)
+        // AES-256-GCM encrypt each shard before distribution to Guardian nodes.
+        // The PIN is provided by the user during the recovery flow; here we use
+        // a fixed demo value so the presentation can demonstrate decryption end-to-end.
         addLog("info", "AES-encrypting shards for Guardian Network deployment...");
         const e1 = await encryptShard(s[0], "4242");
         const e2 = await encryptShard(s[1], "4242");
         const e3 = await encryptShard(s[2], "4242");
         setEncryptedNetworkShards([e1, e2, e3]);
-
         addLog("success", "3 shards encrypted and distributed to decentralized Guardians");
     }, [addLog]);
 
@@ -137,10 +137,12 @@ export default function OmniZKPPage() {
 
             let teeSignature = "UNVERIFIED";
             if (useHardwareEnclave && hardwareKeys) {
-                addLog("info", "🔒 Requesting OS/Hardware signature for sensor data...");
+                addLog("info", "[ENCLAVE] Requesting hardware signature for sensor payload...");
                 teeSignature = await signSensorDataWithHardware(hardwareKeys.privateKey, safeDist, safeTime);
-                addLog("success", `✅ Hardware Signature Generated: ${teeSignature.substring(0, 16)}...`);
+                addLog("success", `[ENCLAVE] Hardware signature acquired: ${teeSignature.substring(0, 16)}...`);
             }
+            const t0 = performance.now();
+
             const result = verify_proof_js(
                 BigInt(1000 + safeDist), BigInt(0),
                 BigInt(1000), BigInt(safeTime),
@@ -148,9 +150,12 @@ export default function OmniZKPPage() {
                 teeSignature
             );
 
-            if (result.includes("✅") && !result.includes("INVALID")) {
+            const t1 = performance.now();
+            const executionTimeMs = (t1 - t0).toFixed(0);
+
+            if (result.includes("[VERIFIED]") && !result.includes("INVALID")) {
+                addLog("wasm", `[LATENCY] Proof generated in ${executionTimeMs}ms`);
                 addLog("success", `Proof valid  ·  nullifier: ${nullifier.slice(0, 18)}…`);
-                addLog("success", "Unlinkable — nullifier is scoped to this verifier only");
                 const vc = {
                     "@context": ["https://www.w3.org/2018/credentials/v1"],
                     type: ["VerifiableCredential", "OmniHumanityProof"],
@@ -198,10 +203,10 @@ export default function OmniZKPPage() {
     }, [inputShards, addLog]);
 
     const runAutomatedE2ETests = async () => {
-        addLog("warn", "🚀 INITIATING AUTOMATED E2E INTEGRATION SUITE...");
+        addLog("warn", "[SYS] Initiating automated E2E integration suite...");
 
         try {
-            // TEST 1: Identity & Sharding
+            // Test 1: Verify CSPRNG identity generation and GF(2⁸) sharding.
             addLog("info", "[TEST 1] Testing CSPRNG Identity & GF(2⁸) Sharding...");
             const testId = generateIdentity();
             if (!testId) throw new Error("Identity generation failed");
@@ -209,7 +214,7 @@ export default function OmniZKPPage() {
             if (testShards.length !== 3) throw new Error("Sharding failed");
             addLog("success", "[PASS] Identity & Shards generated successfully.");
 
-            // TEST 2: Hardware Enclave Rejection (Soundness)
+            // Test 2: Circuit soundness — missing TEE signature must be rejected pre-synthesis.
             addLog("info", "[TEST 2] Testing Circuit Soundness (Missing TEE Signature)...");
             const nullifier = generateNullifier(testId.masterSecret, "TEST_SCOPE");
             const resultUnsigned = verify_proof_js(
@@ -218,25 +223,25 @@ export default function OmniZKPPage() {
             if (!resultUnsigned.includes("INVALID")) throw new Error("Circuit accepted unsigned payload!");
             addLog("success", "[PASS] Circuit correctly rejected unsigned payload.");
 
-            // TEST 3: Valid Proof Generation (Completeness)
+            // Test 3: Circuit completeness — a valid TEE-signed witness within gate bounds must verify.
             addLog("info", "[TEST 3] Testing Circuit Completeness (Valid TEE & Location)...");
             const resultValid = verify_proof_js(
                 BigInt(1200), BigInt(0), BigInt(1000), BigInt(10), nullifier, "0xmock_hardware_sig_test"
             );
-            if (!resultValid.includes("✅")) throw new Error("Circuit rejected valid payload!");
+            if (!resultValid.includes("[VERIFIED]")) throw new Error("Circuit rejected valid payload!");
             addLog("success", "[PASS] Circuit verified valid hardware payload.");
 
-            // TEST 4: Shamir MPC Recovery
+            // Test 4: Shamir reconstruction — any 2-of-3 shares must recover the original secret.
             addLog("info", "[TEST 4] Testing Trustless MPC Recovery...");
-            const recovered = recoverSecret([testShards[0], testShards[2]]); // Using 2 of 3 shards
+            const recovered = recoverSecret([testShards[0], testShards[2]]);
             if (recovered !== testId.masterSecret) throw new Error("Recovered secret mismatch!");
             addLog("success", "[PASS] Master secret fully reconstructed from shards.");
 
-            addLog("warn", "✅ ALL INTEGRATION TESTS PASSED SUCESSFULLY.");
+            addLog("warn", "[SYS] All integration tests passed.");
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
 
         } catch (e: any) {
-            addLog("error", `❌ E2E TEST SUITE FAILED: ${e.message}`);
+            addLog("error", `[FAIL] E2E test suite failed: ${e.message}`);
         }
     };
 
@@ -296,7 +301,7 @@ export default function OmniZKPPage() {
                             encryptedShards={encryptedNetworkShards}
                             recoveredSecret={recoveredSecret}
                             onRecover={(rawShards) => {
-                                // This is called AFTER the human input decrypts the blobs
+                                // Invoked after the user decrypts their Guardian-held shard blobs.
                                 const rec = recoverSecret(rawShards);
                                 if (rec) {
                                     setRecoveredSecret(rec);

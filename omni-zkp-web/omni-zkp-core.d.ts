@@ -11,6 +11,8 @@ declare module 'omni-zkp-core' {
     user_lat: bigint,
     user_time: bigint,
     target_lat: bigint,
-    current_time: bigint
+    target_time: bigint,
+    user_nullifier_hex: string,
+    hardware_sig: string
   ): string;
 }

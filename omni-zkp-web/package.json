@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
-    "next": "16.1.6",
+    "framer-motion": "^11.0.0",
+    "geist": "^1.3.0",
+    "lucide-react": "^0.400.0",
+    "next": "15.2.3",
     "omni-zkp-core": "file:../omni-zkp-core/pkg",
     "postal-mime": "^2.7.3",
     "react": "19.2.3",
@@ -27,7 +30,7 @@
     "@types/react-dom": "^19",
     "daisyui": "^5.5.18",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "15.2.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

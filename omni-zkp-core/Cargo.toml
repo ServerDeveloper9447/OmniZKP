@@ -1,19 +1,13 @@
 [package]
 name = "omni-zkp-core"
 version = "0.3.0"
-edition = "2024"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# 1. The Core Library (This re-exports halo2curves, so we use that)
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }
-
-# 2. Gadgets (Optional, but good to keep)
-halo2_gadgets = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }
-
-# 3. Utilities
 rand_core = "0.6"
 rand = "0.8"
 itertools = "0.10"
@@ -22,5 +16,4 @@ console_error_panic_hook = "0.1"
 getrandom = { version = "0.2", features = ["js"] }
 sha2 = "0.10"
 hex = "0.4"
-sharks = "0.5.0"      # Production Shamir's Secret Sharing
-js-sys = "0.3"        # WASM Array bridging
+sharks = "0.5.0" # Production Galois Field Shamir's Secret Sharing

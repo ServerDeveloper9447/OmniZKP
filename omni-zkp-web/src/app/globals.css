@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── Base ─────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 99px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Range inputs (reset) ─────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+/* ── Monospace code blocks ────────────────────────── */
+.json-block {
+  font-family: var(--font-mono), 'Fira Code', monospace;
+  font-size: 0.72rem;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Syntax token colours */
+.tok-key {
+  color: #0f766e;
+}
+
+/* teal-700  */
+.tok-str {
+  color: #166534;
+}
+
+/* green-800 */
+.tok-num {
+  color: #92400e;
+}
+
+/* amber-800 */
+.tok-bool {
+  color: #5b21b6;
+}
+
+/* violet-800 */
+
+.dark .tok-key {
+  color: #5eead4;
+}
+
+/* teal-300  */
+.dark .tok-str {
+  color: #86efac;
+}
+
+/* green-300 */
+.dark .tok-num {
+  color: #fcd34d;
+}
+
+/* amber-300 */
+.dark .tok-bool {
+  color: #c4b5fd;
+}
+
+/* violet-300 */
+
+/* ── Log console ──────────────────────────────────── */
+.log-info {
+  color: #52525b;
+}
+
+.log-success {
+  color: #15803d;
+}
+
+.log-error {
+  color: #dc2626;
+}
+
+.log-warn {
+  color: #d97706;
+}
+
+.log-wasm {
+  color: #7c3aed;
+}
+
+.dark .log-info {
+  color: #a1a1aa;
+}
+
+.dark .log-success {
+  color: #4ade80;
+}
+
+.dark .log-error {
+  color: #f87171;
+}
+
+.dark .log-warn {
+  color: #fbbf24;
+}
+
+.dark .log-wasm {
+  color: #a78bfa;
+}

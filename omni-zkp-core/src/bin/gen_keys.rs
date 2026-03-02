@@ -1,16 +1,12 @@
 use halo2_proofs::{
-    circuit::Value,
-    plonk::{keygen_pk, keygen_vk, ProvingKey, VerifyingKey},
+    plonk::{keygen_pk, keygen_vk},
     poly::kzg::commitment::ParamsKZG,
     SerdeFormat,
-    halo2curves::bn256::{Bn256, Fr},
+    halo2curves::bn256::{Bn256},
 };
-use halo2_proofs::halo2curves::pairing::Engine; // Need Engine trait
-
 use omni_zkp_core::circuit::OmniCircuit; 
 use rand::rngs::OsRng;
 use std::fs::File;
-use std::io::Write;
 
 fn main() {
     println!("🔑 Starting Production Key Generation...");

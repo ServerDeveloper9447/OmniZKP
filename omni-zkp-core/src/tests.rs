@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-
+    use crate::verify_proof_js;
     /// Completeness: a well-formed witness with valid TEE attestation, distance ≤500m,
     /// and signal age ≤30s must produce a [VERIFIED] result.
     #[test]
